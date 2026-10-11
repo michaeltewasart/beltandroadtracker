@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Satoshi', ui-sans-serif, system-ui, sans-serif;
+  --color-brand: #ff9900;
+  --color-night: #0b0d10;
+}
+
+/* MapLibre overrides. Kept unlayered so they beat maplibre-gl.css (which is also unlayered). */
+.bri-tooltip {
+  @apply pointer-events-none;
+}
+.bri-tooltip .maplibregl-popup-content {
+  @apply rounded-lg border border-white/10 bg-neutral-800/95 px-3 py-2 font-sans text-neutral-100 shadow-xl backdrop-blur;
+}
+.bri-tooltip.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--color-neutral-800);
+}
+.bri-tooltip.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--color-neutral-800);
+}
+.bri-tooltip.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--color-neutral-800);
+}
+.bri-tooltip.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--color-neutral-800);
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  @apply bg-neutral-900/70 text-neutral-400;
+}
+.maplibregl-ctrl-attrib a {
+  @apply text-neutral-300;
+}
+.maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}

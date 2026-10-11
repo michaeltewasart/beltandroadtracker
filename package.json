@@ -1,0 +1,21 @@
+{
+  "name": "beltandroadtracker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "data": "node scripts/build-data.mjs",
+    "dev": "npm run data && vite",
+    "build": "npm run data && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "maplibre-gl": "5.24.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "papaparse": "^5.7.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^7.3.7"
+  }
+}
