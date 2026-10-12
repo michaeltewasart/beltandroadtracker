@@ -15,9 +15,22 @@ npm run preview  # serve dist/ locally
 
 ## Updating the projects
 
-Project data comes from the Webflow CMS export at `data/projects.csv`. To update it, export the Projects collection from Webflow again, replace that file, and rebuild. `npm run data`, which also runs automatically before `dev` and `build`, converts it to `public/data/projects.geojson`. Archived and draft items are skipped.
+All project data lives in one file: **`data/projects.csv`**. Open it in Excel, Numbers or Google Sheets, edit, save as CSV, and restart the site (or run `npm run data`).
 
-Columns used: `Name`, `Project Type`, `Description`, `Country`, `Continent`, `Lattitude`, `Longitude`, `Cost`, `Featured Image`, `TSP Main Link`, `Archived`, `Draft`.
+| Column | What goes in it |
+|---|---|
+| Name | Project name shown on the map |
+| Slug | Unique ID, lowercase-with-dashes (left blank, one is made from the name) |
+| Project Type | e.g. Port, Railway, Dam |
+| Status | In Progress, Completed, or Abandoned (coloured tag; blank shows none) |
+| Country, Continent | Shown under the name |
+| Latitude, Longitude | Marker position, in decimal degrees |
+| Cost (USD) | Optional, a plain number |
+| Image | A file name from `public/images/projects/`, a full image URL, or blank (see that folder's README) |
+| Link | Optional "Learn more" URL |
+| Description | Plain text; leave a blank line between paragraphs |
+
+`npm run data` (also run automatically before `dev` and `build`) turns it into `public/data/projects.geojson`, the file the map loads. It warns about rows with missing coordinates, duplicate names, or image files that don't exist.
 
 ## Notes
 

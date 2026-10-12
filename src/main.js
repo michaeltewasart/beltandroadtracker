@@ -8,6 +8,8 @@ const DATA_URL = `${import.meta.env.BASE_URL}data/projects.geojson`;
 const PROJECTION_MS = 1100;
 
 const isSmall = () => window.matchMedia('(max-width: 639px)').matches;
+// Matches Tailwind's `md` breakpoint, where the details panel docks to the left.
+const isWide = () => window.matchMedia('(min-width: 768px)').matches;
 
 // Initial camera per view, tuned so the whole world fits on phones and desktops.
 const homeView = (mode) => ({
@@ -29,6 +31,7 @@ const els = {
   sheetHandle: $('sheet-handle'),
   image: $('sheet-image'),
   typeText: $('sheet-type-text'),
+  sheetStatus: $('sheet-status'),
   name: $('sheet-name'),
   meta: $('sheet-meta'),
   description: $('sheet-description'),
@@ -53,7 +56,8 @@ const map = new maplibregl.Map({
   renderWorldCopies: true,
 });
 map.touchZoomRotate.disableRotation();
-map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+// Bottom-right, under the zoom buttons, so the left details panel never covers it.
+map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
 const tooltip = new maplibregl.Popup({
   className: 'bri-tooltip',
@@ -206,6 +210,14 @@ const usd = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
+// Written out in full so Tailwind can see every class at build time.
+const STATUS_BASE = 'items-center rounded-full px-2.5 py-1 text-[14px]/[18px] font-bold uppercase tracking-wider';
+const STATUS_STYLES = {
+  'In Progress': 'inline-flex bg-yellow-400/15 text-yellow-300',
+  Completed: 'inline-flex bg-green-500/15 text-green-400',
+  Abandoned: 'inline-flex bg-red-500/15 text-red-400',
+};
+
 function metaItem(label, value) {
   const wrap = document.createElement('div');
   wrap.className = 'flex gap-1';
@@ -219,6 +231,10 @@ function metaItem(label, value) {
 
 function renderSheet(p) {
   els.typeText.textContent = p.type;
+
+  const statusStyle = STATUS_STYLES[p.status];
+  els.sheetStatus.className = `${STATUS_BASE} ${statusStyle ?? 'hidden'}`;
+  els.sheetStatus.textContent = statusStyle ? p.status : '';
   els.name.textContent = p.name;
 
   const location = [p.country, p.continent].filter(Boolean).join(', ');
@@ -242,7 +258,8 @@ function renderSheet(p) {
   if (p.image) {
     els.image.onload = () => els.image.classList.remove('hidden');
     els.image.onerror = () => els.image.classList.add('hidden');
-    els.image.src = p.image;
+    // Local photos (public/images/projects/) are site-relative; CMS images are full URLs.
+    els.image.src = /^https?:/.test(p.image) ? p.image : `${import.meta.env.BASE_URL}${p.image}`;
   } else {
     els.image.removeAttribute('src');
   }
@@ -267,13 +284,20 @@ function selectProject(feature, coords) {
   openSheet();
   tooltip.remove();
 
-  // Center the marker in the space left visible above the sheet.
+  // Center the marker in the map area the panel leaves visible: right of the side
+  // panel on wide screens, above the bottom sheet otherwise. offset* sizes ignore the
+  // slide-in transform, which is still mid-animation here.
   requestAnimationFrame(() => {
-    const sheetH = els.sheet.getBoundingClientRect().height;
-    const lift = isSmall() ? sheetH / 2 : Math.min(sheetH / 2, window.innerHeight / 4);
+    let offset;
+    if (isWide()) {
+      offset = [(els.sheet.offsetLeft + els.sheet.offsetWidth) / 2, 0];
+    } else {
+      const sheetH = els.sheet.offsetHeight;
+      offset = [0, -(isSmall() ? sheetH / 2 : Math.min(sheetH / 2, window.innerHeight / 4))];
+    }
     map.flyTo({
       center: coords,
-      offset: [0, -lift],
+      offset,
       zoom: Math.max(map.getZoom(), mode === '3d' ? 2.2 : 3),
       speed: 0.8,
       curve: 1.2,
@@ -303,6 +327,7 @@ function bindSwipeToClose() {
   let dy = 0;
 
   els.sheet.addEventListener('touchstart', (e) => {
+    if (isWide()) return; // the side panel closes with its button, Esc, or a map click
     const onHandle = els.sheetHandle.contains(e.target);
     if (!onHandle && els.sheetBody.scrollTop > 0) return;
     startY = e.touches[0].clientY;
@@ -424,6 +449,13 @@ function hideStatus() {
   els.status.classList.add('opacity-0');
   setTimeout(() => els.status.remove(), 800);
 }
+
+// Expose the header card's bottom edge as --brand-bottom so the side panel starts below it.
+const brand = document.getElementById('brand');
+const syncBrandBottom = () =>
+  document.documentElement.style.setProperty('--brand-bottom', `${brand.getBoundingClientRect().bottom}px`);
+new ResizeObserver(syncBrandBottom).observe(brand);
+window.addEventListener('resize', syncBrandBottom);
 
 const dataPromise = loadProjects();
 dataPromise.catch(() => {}); // handled in the load callback
