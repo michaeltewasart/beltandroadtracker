@@ -5,6 +5,7 @@ import { mapStyle, SKY_GLOBE } from './map-style.js';
 
 const BRAND = '#ff9900';
 const DATA_URL = `${import.meta.env.BASE_URL}data/projects.geojson`;
+const ROUTES_URL = `${import.meta.env.BASE_URL}data/routes.geojson`;
 const PROJECTION_MS = 1100;
 
 const isSmall = () => window.matchMedia('(max-width: 639px)').matches;
@@ -75,7 +76,61 @@ async function loadProjects() {
   return res.json();
 }
 
+// Routes are optional extras; the map still works if they fail to load.
+async function loadRoutes() {
+  try {
+    const res = await fetch(ROUTES_URL);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 /* ---------- Layers ---------- */
+
+let projectData = null;
+const routeIdsByProject = new Map(); // project feature id -> route feature ids
+
+// Railways, roads etc. drawn as dotted lines under the markers (data/routes/*.geojson).
+function addRouteLayers(routes) {
+  for (const f of routes.features) {
+    const ids = routeIdsByProject.get(f.properties.projectId) ?? [];
+    routeIdsByProject.set(f.properties.projectId, [...ids, f.id]);
+  }
+  map.addSource('routes', { type: 'geojson', data: routes });
+  const selected = ['boolean', ['feature-state', 'selected'], false];
+  // Soft glow that appears while the route's project is selected.
+  map.addLayer({
+    id: 'routes-glow',
+    type: 'line',
+    source: 'routes',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': BRAND,
+      'line-blur': 4,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 2, 6, 8, 12],
+      'line-opacity': ['case', selected, 0.45, 0],
+    },
+  });
+  // Round caps on zero-length dashes draw a row of dots.
+  map.addLayer({
+    id: 'routes',
+    type: 'line',
+    source: 'routes',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': BRAND,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 2, ['case', selected, 3, 2.25], 8, ['case', selected, 6, 4.5]],
+      'line-dasharray': [0, 2],
+      'line-opacity': ['case', selected, 1, 0.85],
+    },
+  });
+}
+
+function setRouteSelected(projectId, selected) {
+  if (projectId === null || !map.getSource('routes')) return;
+  for (const id of routeIdsByProject.get(projectId) ?? []) map.setFeatureState({ source: 'routes', id }, { selected });
+}
 
 function addProjectLayers(data) {
   map.addSource('projects', { type: 'geojson', data });
@@ -124,6 +179,7 @@ function addProjectLayers(data) {
 
 function setFeatureState(id, state) {
   if (id !== null) map.setFeatureState({ source: 'projects', id }, state);
+  if (id !== null && 'selected' in state) setRouteSelected(id, state.selected);
 }
 
 /* ---------- Interaction ---------- */
@@ -135,6 +191,17 @@ function wrapCoords(coords, lngLat) {
   return c;
 }
 
+function tooltipContent(props) {
+  const content = document.createElement('div');
+  const type = content.appendChild(document.createElement('p'));
+  type.className = 'text-[0.6875rem] font-bold uppercase tracking-wider text-brand';
+  type.textContent = props.type;
+  const name = content.appendChild(document.createElement('p'));
+  name.className = 'text-sm font-medium leading-snug';
+  name.textContent = props.name;
+  return content;
+}
+
 function bindInteractions() {
   map.on('mousemove', 'projects', (e) => {
     const f = e.features[0];
@@ -144,14 +211,7 @@ function bindInteractions() {
       hoveredId = f.id;
       setFeatureState(hoveredId, { hover: true });
     }
-    const content = document.createElement('div');
-    const type = content.appendChild(document.createElement('p'));
-    type.className = 'text-[0.6875rem] font-bold uppercase tracking-wider text-brand';
-    type.textContent = f.properties.type;
-    const name = content.appendChild(document.createElement('p'));
-    name.className = 'text-sm font-medium leading-snug';
-    name.textContent = f.properties.name;
-    tooltip.setLngLat(wrapCoords(f.geometry.coordinates, e.lngLat)).setDOMContent(content).addTo(map);
+    tooltip.setLngLat(wrapCoords(f.geometry.coordinates, e.lngLat)).setDOMContent(tooltipContent(f.properties)).addTo(map);
   });
 
   map.on('mouseleave', 'projects', () => {
@@ -161,15 +221,32 @@ function bindInteractions() {
     tooltip.remove();
   });
 
+  // Hovering a route shows the same tooltip as its project's marker.
+  if (map.getLayer('routes')) {
+    map.on('mousemove', 'routes', (e) => {
+      if (hoveredId !== null) return; // a marker under the cursor wins
+      const project = projectData.features[e.features[0].properties.projectId];
+      map.getCanvas().style.cursor = 'pointer';
+      tooltip.setLngLat(e.lngLat).setDOMContent(tooltipContent(project.properties)).addTo(map);
+    });
+    map.on('mouseleave', 'routes', () => {
+      if (hoveredId !== null) return;
+      map.getCanvas().style.cursor = '';
+      tooltip.remove();
+    });
+  }
+
   map.on('click', (e) => {
-    // Generous hit box so markers are easy to tap on touch screens.
+    // Generous hit box so markers and routes are easy to tap on touch screens.
     const pad = isSmall() ? 14 : 6;
-    const [hit] = map.queryRenderedFeatures(
-      [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]],
-      { layers: ['projects'] },
-    );
+    const box = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
+    const [hit] = map.queryRenderedFeatures(box, { layers: ['projects'] });
+    const [routeHit] = hit || !map.getLayer('routes') ? [] : map.queryRenderedFeatures(box, { layers: ['routes'] });
     if (hit) {
       selectProject(hit, wrapCoords(hit.geometry.coordinates, e.lngLat));
+    } else if (routeHit) {
+      const project = projectData.features[routeHit.properties.projectId];
+      selectProject(project, wrapCoords(project.geometry.coordinates, e.lngLat));
     } else {
       closeSheet();
     }
@@ -459,6 +536,7 @@ window.addEventListener('resize', syncBrandBottom);
 
 const dataPromise = loadProjects();
 dataPromise.catch(() => {}); // handled in the load callback
+const routesPromise = loadRoutes();
 
 if (import.meta.env.DEV) Object.assign(window, { map, setGlobeness });
 
@@ -466,6 +544,9 @@ map.on('load', async () => {
   map.setSky(SKY_GLOBE);
   try {
     const data = await dataPromise;
+    projectData = data;
+    const routes = await routesPromise;
+    if (routes?.features.length) addRouteLayers(routes); // added first so markers sit on top
     addProjectLayers(data);
     bindInteractions();
     els.count.textContent = `${data.features.length.toLocaleString()} projects`;

@@ -32,6 +32,10 @@ All project data lives in one file: **`data/projects.csv`**. Open it in Excel, N
 
 `npm run data` (also run automatically before `dev` and `build`) turns it into `public/data/projects.geojson`, the file the map loads. It warns about rows with missing coordinates, duplicate names, or image files that don't exist.
 
+## Routes (railways, roads, pipelines)
+
+A project can have its route drawn on the map as a dotted line. Add a GeoJSON file to `data/routes/` named after the project's slug (e.g. `data/routes/tanzania-standard-gauge-railway.geojson`) containing a LineString or MultiLineString. It's picked up automatically; the line highlights while the project is selected, and clicking it opens the project. The Tanzania SGR route comes from OpenStreetMap (ODbL), with straight segments bridging sections still unmapped.
+
 ## Notes
 
 - `maplibre-gl` is pinned to an exact version because the smooth 2D↔3D morph (`setGlobeness` in `src/main.js`) relies on MapLibre internals. After upgrading, check that the toggle still animates. If those internals ever disappear, it falls back to an instant switch.

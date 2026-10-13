@@ -9,6 +9,10 @@
 //   continent folders), a path like "Asia/photo.jpg", a full image URL, or blank. Blank rows are
 //   auto-matched by name to photos that no row claims (see match-images.mjs).
 // - Description: plain text; separate paragraphs with a blank line.
+//
+// Routes (railways, roads, pipelines…): data/routes/<project slug>.geojson holds a LineString or
+// MultiLineString for that project. They're combined into public/data/routes.geojson and drawn as
+// dotted lines.
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { sep } from 'node:path';
 import Papa from 'papaparse';
@@ -18,6 +22,7 @@ const SRC = new URL('../data/projects.csv', import.meta.url);
 const OUT_DIR = new URL('../public/data/', import.meta.url);
 const IMAGES_DIR = new URL('../public/images/projects/', import.meta.url);
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|avif|gif)$/i;
+const ROUTES_DIR = new URL('../data/routes/', import.meta.url);
 
 // Like encodeURIComponent, but leaves characters that are legal in a URL path (& + , ; = $ @ :)
 // as-is: some static servers, including Vite's dev server, don't decode e.g. %26 back to "&".
@@ -158,7 +163,30 @@ for (const f of features) {
   if (img && !/^https?:\/\//i.test(img)) f.properties.image = `images/projects/${img.split('/').map(encodePathSegment).join('/')}`;
 }
 
+// Routes: one file per project, named after its slug.
+const bySlug = new Map(features.map((f) => [f.properties.slug, f]));
+const routes = [];
+for (const file of readdirSync(ROUTES_DIR).filter((f) => f.endsWith('.geojson'))) {
+  const slug = file.replace(/\.geojson$/, '');
+  const project = bySlug.get(slug);
+  if (!project) {
+    warn(`route: data/routes/${file} doesn't match any project slug`);
+    continue;
+  }
+  const json = JSON.parse(readFileSync(new URL(file, ROUTES_DIR), 'utf8'));
+  const parts = json.type === 'FeatureCollection' ? json.features : [json.type === 'Feature' ? json : { type: 'Feature', geometry: json }];
+  for (const part of parts) {
+    if (!/LineString$/.test(part.geometry?.type ?? '')) {
+      warn(`route: data/routes/${file} has a ${part.geometry?.type} instead of a line; skipped`);
+      continue;
+    }
+    routes.push({ type: 'Feature', id: routes.length, geometry: part.geometry, properties: { slug, projectId: project.id } });
+  }
+  project.properties.hasRoute = true;
+}
+
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(new URL('projects.geojson', OUT_DIR), JSON.stringify({ type: 'FeatureCollection', features }));
+writeFileSync(new URL('routes.geojson', OUT_DIR), JSON.stringify({ type: 'FeatureCollection', features: routes }));
 const withImages = features.filter((f) => f.properties.image).length;
-console.log(`projects.geojson: ${features.length} projects, ${withImages} with images`);
+console.log(`projects.geojson: ${features.length} projects, ${withImages} with images, ${new Set(routes.map((r) => r.properties.slug)).size} with routes`);
