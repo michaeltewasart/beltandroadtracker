@@ -82,7 +82,7 @@ export function matchImages(files, projects, pinned = {}) {
   };
 
   for (const file of [...files].sort()) {
-    const base = file.replace(/\.[^.]+$/, '');
+    const base = file.split('/').pop().replace(/\.[^.]+$/, ''); // ignore the folder
 
     const pinnedSlug = pinned[file];
     if (pinnedSlug) {

@@ -26,7 +26,7 @@ All project data lives in one file: **`data/projects.csv`**. Open it in Excel, N
 | Country, Continent | Shown under the name |
 | Latitude, Longitude | Marker position, in decimal degrees |
 | Cost (USD) | Optional, a plain number |
-| Image | A file name from `public/images/projects/`, a full image URL, or blank (see that folder's README) |
+| Image | A photo file name from `public/images/projects/` (any continent folder), a full image URL, or blank (see that folder's README) |
 | Link | Optional "Learn more" URL |
 | Description | Plain text; leave a blank line between paragraphs |
 
