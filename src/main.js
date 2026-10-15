@@ -32,6 +32,7 @@ const els = {
   sheetBody: $('sheet-body'),
   sheetClose: $('sheet-close'),
   sheetHandle: $('sheet-handle'),
+  sheetThumb: $('sheet-thumb'),
   image: $('sheet-image'),
   typeText: $('sheet-type-text'),
   sheetStatus: $('sheet-status'),
@@ -409,6 +410,7 @@ function bindSwipeToClose() {
 
   els.sheet.addEventListener('touchstart', (e) => {
     if (isWide()) return; // the side panel closes with its button, Esc, or a map click
+    if (els.sheetThumb.contains(e.target)) return; // dragging the scrollbar, not the sheet
     const onHandle = els.sheetHandle.contains(e.target);
     if (!onHandle && els.sheetBody.scrollTop > 0) return;
     startY = e.touches[0].clientY;
@@ -432,6 +434,58 @@ function bindSwipeToClose() {
     startY = null;
   });
 }
+
+/* ---------- Details sheet scrollbar ---------- */
+
+// The sheet's native scrollbar is hidden (it takes width from the image and text), so this
+// thumb is drawn over the content instead, tracks the scroll position, and can be dragged.
+const THUMB_INSET = 8; // px kept clear above and below the thumb's travel
+const THUMB_MIN = 32;
+
+function thumbMetrics() {
+  const { scrollHeight, clientHeight, offsetTop } = els.sheetBody;
+  const track = clientHeight - THUMB_INSET * 2;
+  const height = Math.max(THUMB_MIN, (track * clientHeight) / scrollHeight);
+  return { offsetTop, track, height, maxScroll: scrollHeight - clientHeight };
+}
+
+function updateSheetThumb() {
+  const { offsetTop, track, height, maxScroll } = thumbMetrics();
+  els.sheetThumb.hidden = maxScroll <= 1;
+  if (els.sheetThumb.hidden) return;
+  const top = offsetTop + THUMB_INSET + ((track - height) * els.sheetBody.scrollTop) / maxScroll;
+  els.sheetThumb.style.height = `${height}px`;
+  els.sheetThumb.style.transform = `translateY(${top}px)`;
+}
+
+function bindSheetThumb() {
+  els.sheetBody.addEventListener('scroll', updateSheetThumb, { passive: true });
+  // Content height changes when a project renders or its photo loads.
+  const resize = new ResizeObserver(updateSheetThumb);
+  for (const el of els.sheetBody.children) resize.observe(el);
+  resize.observe(els.sheetBody);
+
+  let drag = null;
+  els.sheetThumb.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    els.sheetThumb.setPointerCapture(e.pointerId);
+    els.sheetThumb.dataset.dragging = 'true';
+    drag = { y: e.clientY, scrollTop: els.sheetBody.scrollTop };
+  });
+  els.sheetThumb.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const { track, height, maxScroll } = thumbMetrics();
+    els.sheetBody.scrollTop = drag.scrollTop + ((e.clientY - drag.y) * maxScroll) / (track - height);
+  });
+  const endDrag = () => {
+    drag = null;
+    delete els.sheetThumb.dataset.dragging;
+  };
+  els.sheetThumb.addEventListener('pointerup', endDrag);
+  els.sheetThumb.addEventListener('pointercancel', endDrag);
+}
+
+bindSheetThumb();
 
 /* ---------- 2D <-> 3D ---------- */
 
