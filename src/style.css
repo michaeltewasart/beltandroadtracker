@@ -1,37 +1,49 @@
 @import 'tailwindcss';
 
+/* Light theme: <html data-theme="light">. Dark is the default, so components are styled
+   dark first and add light: overrides. */
+@custom-variant light (&:where([data-theme=light], [data-theme=light] *));
+
 @theme {
   --font-sans: 'Satoshi', ui-sans-serif, system-ui, sans-serif;
   --color-brand: #ff9900;
   --color-night: #0b0d10;
+  --color-day: #d6ebf8;
 }
 
 /* MapLibre overrides. Kept unlayered so they beat maplibre-gl.css (which is also unlayered). */
 .bri-tooltip {
   @apply pointer-events-none;
+  --tooltip-bg: var(--color-neutral-800);
+}
+[data-theme='light'] .bri-tooltip {
+  --tooltip-bg: var(--color-white);
 }
 .bri-tooltip .maplibregl-popup-content {
-  @apply rounded-lg border border-white/10 bg-neutral-800/95 px-3 py-2 font-sans text-neutral-100 shadow-xl backdrop-blur;
+  @apply rounded-lg border border-white/10 bg-neutral-800/95 px-3 py-2 font-sans text-neutral-100 shadow-xl backdrop-blur light:border-black/10 light:bg-white/95 light:text-neutral-900;
 }
 .bri-tooltip.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
-  border-top-color: var(--color-neutral-800);
+  border-top-color: var(--tooltip-bg);
 }
 .bri-tooltip.maplibregl-popup-anchor-top .maplibregl-popup-tip {
-  border-bottom-color: var(--color-neutral-800);
+  border-bottom-color: var(--tooltip-bg);
 }
 .bri-tooltip.maplibregl-popup-anchor-left .maplibregl-popup-tip {
-  border-right-color: var(--color-neutral-800);
+  border-right-color: var(--tooltip-bg);
 }
 .bri-tooltip.maplibregl-popup-anchor-right .maplibregl-popup-tip {
-  border-left-color: var(--color-neutral-800);
+  border-left-color: var(--tooltip-bg);
 }
 
 .maplibregl-ctrl-attrib.maplibregl-compact {
-  @apply bg-neutral-900/70 text-neutral-400;
+  @apply bg-neutral-900/70 text-neutral-400 light:bg-white/80 light:text-neutral-600;
 }
 .maplibregl-ctrl-attrib a {
-  @apply text-neutral-300;
+  @apply text-neutral-300 light:text-neutral-700;
 }
 .maplibregl-ctrl-attrib-button {
   filter: invert(1);
+}
+[data-theme='light'] .maplibregl-ctrl-attrib-button {
+  filter: none;
 }

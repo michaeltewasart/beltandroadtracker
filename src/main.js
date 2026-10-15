@@ -1,7 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import { mapStyle, SKY_GLOBE } from './map-style.js';
+import { mapStyle, skyGlobe, THEMES } from './map-style.js';
 
 const BRAND = '#ff9900';
 const DATA_URL = `${import.meta.env.BASE_URL}data/projects.geojson`;
@@ -25,6 +25,8 @@ const els = {
   count: $('project-count'),
   toggle: $('view-toggle'),
   thumb: $('toggle-thumb'),
+  themeToggle: $('theme-toggle'),
+  themeColor: document.querySelector('meta[name="theme-color"]'),
   controls: $('controls'),
   sheet: $('sheet'),
   sheetBody: $('sheet-body'),
@@ -42,12 +44,14 @@ const els = {
 };
 
 let mode = '2d';
+// Set before first paint by the inline script in index.html.
+let theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 let selectedId = null;
 let hoveredId = null;
 
 const map = new maplibregl.Map({
   container: 'map',
-  style: mapStyle,
+  style: mapStyle(theme),
   ...homeView('2d'),
   minZoom: 0,
   maxZoom: 16,
@@ -290,9 +294,9 @@ const usd = new Intl.NumberFormat('en-US', {
 // Written out in full so Tailwind can see every class at build time.
 const STATUS_BASE = 'items-center rounded-full px-2.5 py-1 text-[14px]/[18px] font-bold uppercase tracking-wider';
 const STATUS_STYLES = {
-  'In Progress': 'inline-flex bg-yellow-400/15 text-yellow-300',
-  Completed: 'inline-flex bg-green-500/15 text-green-400',
-  Abandoned: 'inline-flex bg-red-500/15 text-red-400',
+  'In Progress': 'inline-flex bg-yellow-400/15 text-yellow-300 light:bg-yellow-400/25 light:text-yellow-800',
+  Completed: 'inline-flex bg-green-500/15 text-green-400 light:text-green-700',
+  Abandoned: 'inline-flex bg-red-500/15 text-red-400 light:text-red-700',
 };
 
 function metaItem(label, value) {
@@ -520,6 +524,36 @@ function setMode(next) {
   });
 }
 
+/* ---------- Dark / light theme ---------- */
+
+// Restyles the basemap in place. setStyle() would drop the project layers and the
+// projection the 2D/3D morph relies on, so only paint properties change.
+function applyMapTheme() {
+  for (const layer of mapStyle(theme).layers) {
+    for (const [prop, value] of Object.entries(layer.paint ?? {})) map.setPaintProperty(layer.id, prop, value);
+  }
+  map.setSky(skyGlobe(theme));
+}
+
+function setTheme(next) {
+  theme = next;
+  const light = theme === 'light';
+  document.documentElement.dataset.theme = theme;
+  els.themeToggle.setAttribute('aria-checked', String(light));
+  els.themeToggle.title = light ? 'Switch to dark mode' : 'Switch to light mode';
+  els.themeColor.content = THEMES[theme].sky;
+  try {
+    localStorage.setItem('theme', theme);
+  } catch {
+    // Storage blocked (private mode etc.): the theme just won't be remembered.
+  }
+  if (map.isStyleLoaded()) applyMapTheme();
+}
+
+els.themeToggle.setAttribute('aria-checked', String(theme === 'light'));
+els.themeToggle.title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+els.themeToggle.addEventListener('click', () => setTheme(theme === 'light' ? 'dark' : 'light'));
+
 /* ---------- Boot ---------- */
 
 function hideStatus() {
@@ -541,7 +575,7 @@ const routesPromise = loadRoutes();
 if (import.meta.env.DEV) Object.assign(window, { map, setGlobeness });
 
 map.on('load', async () => {
-  map.setSky(SKY_GLOBE);
+  applyMapTheme(); // also catches a theme switch made before the map finished loading
   try {
     const data = await dataPromise;
     projectData = data;
