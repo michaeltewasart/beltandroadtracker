@@ -26,10 +26,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Served from the root of the custom domain (www.beltandroadtracker.com, set in
+      # Settings → Pages), so no BASE_PATH. Without a custom domain Pages serves the repo
+      # under /<repo-name>/, and the build would need BASE_PATH: /<repo-name>/.
       - run: npm run build
-        env:
-          # Pages serves this repo under /beltandroadtracker/
-          BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
